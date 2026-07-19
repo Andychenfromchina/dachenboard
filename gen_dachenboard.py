@@ -76,7 +76,7 @@ TRAFFIC_JS = ('<script>addEventListener("load",function(){requestAnimationFrame(
 
 def apply_patches(title, doc):
     if title.startswith('标题栏'):
-        doc = doc.replace('新媒体运营数据驾驶舱', 'AI新媒体运营飞轮看板', 1)
+        doc = doc.replace('新媒体运营数据驾驶舱', '百商AI新媒体运营飞轮', 1)
     else:
         doc = doc.replace('</head>', HIDE_MT_CSS + '</head>', 1)
     if title.startswith('视频号'):
