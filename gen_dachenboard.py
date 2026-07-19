@@ -74,11 +74,85 @@ TRAFFIC_JS = ('<script>addEventListener("load",function(){requestAnimationFrame(
               'var lab=el.parentElement.querySelector(".vval");var max=H-(lab?lab.offsetHeight+8:8);'
               'el.style.height=Math.max(2,max*parseFloat(el.dataset.h)/100)+"px";});});});});</script>')
 
+# ---- 全局光线流动动效(2026-07-20) ----
+# 覆盖:面板边框呼吸/角标脉冲/标题扫光/横条竖柱流光/玻璃Tab与KPI卡扫光/数字盒霓虹/罗盘表盘辉光/圆环旋转高光
+ANIM_CSS = ('<style>@media (prefers-reduced-motion:no-preference){'
+            # 面板边框呼吸 + 四角准星脉冲
+            '.panel{animation:pnlB 6s ease-in-out infinite}'
+            '@keyframes pnlB{0%,100%{border-color:rgba(0,229,255,.26)}50%{border-color:rgba(0,229,255,.55)}}'
+            '.cn{animation:cnP 3s ease-in-out infinite}'
+            '@keyframes cnP{0%,100%{opacity:.6}50%{opacity:1}}'
+            # 卡片标题栏横向扫光
+            '.hd{overflow:hidden}'
+            '.hd::after{content:"";position:absolute;top:0;bottom:0;width:34%;left:-40%;'
+            'background:linear-gradient(105deg,transparent,rgba(140,225,255,.15),transparent);'
+            'animation:hdSweep 5.5s ease-in-out infinite}'
+            '@keyframes hdSweep{0%{left:-40%}55%,100%{left:110%}}'
+            # 横向进度条流光
+            '.bf{position:relative;overflow:hidden}'
+            '.bf::after{content:"";position:absolute;inset:0;'
+            'background:linear-gradient(100deg,transparent 32%,rgba(255,255,255,.32) 50%,transparent 68%);'
+            'background-size:220% 100%;animation:barFlow 2.8s linear infinite}'
+            '@keyframes barFlow{0%{background-position:190% 0}100%{background-position:-90% 0}}'
+            # 竖向柱体升腾流光
+            '.vbar,.dbar{position:relative;overflow:hidden}'
+            '.vbar::after,.dbar::after{content:"";position:absolute;inset:0;'
+            'background:linear-gradient(0deg,transparent 32%,rgba(255,255,255,.28) 50%,transparent 68%);'
+            'background-size:100% 240%;animation:barRise 3.2s linear infinite}'
+            '@keyframes barRise{0%{background-position:0 220%}100%{background-position:0 -120%}}'
+            # 玻璃 Tab / KPI 卡片斜向扫光(错峰)
+            '.tab,.scard{position:relative;overflow:hidden}'
+            '.tab::after,.scard::after{content:"";position:absolute;top:-40%;bottom:-40%;width:26%;left:-36%;'
+            'transform:skewX(-18deg);background:linear-gradient(90deg,transparent,rgba(180,235,255,.2),transparent);'
+            'animation:sheen 4.8s ease-in-out infinite;pointer-events:none}'
+            '@keyframes sheen{0%{left:-36%}60%,100%{left:125%}}'
+            '.tab:nth-child(2)::after{animation-delay:.6s}.tab:nth-child(3)::after{animation-delay:1.2s}'
+            '.tab:nth-child(4)::after{animation-delay:1.8s}'
+            '.scard:nth-child(2)::after{animation-delay:.8s}.scard:nth-child(3)::after{animation-delay:1.6s}'
+            # 翻牌数字盒霓虹呼吸(逐位错峰)
+            '.box{animation:boxGlow 2.6s ease-in-out infinite}'
+            '.box:nth-child(2){animation-delay:.2s}.box:nth-child(3){animation-delay:.4s}'
+            '.box:nth-child(4){animation-delay:.6s}.box:nth-child(5){animation-delay:.8s}.box:nth-child(6){animation-delay:1s}'
+            '@keyframes boxGlow{0%,100%{box-shadow:0 0 5px rgba(0,229,255,.22);text-shadow:0 0 8px rgba(0,229,255,.4)}'
+            '50%{box-shadow:0 0 14px rgba(0,229,255,.65);text-shadow:0 0 14px rgba(0,229,255,.9)}}'
+            # 罗盘表盘辉光呼吸 + 健康分脉冲
+            '.compass{animation:dialGlow 4s ease-in-out infinite}'
+            '@keyframes dialGlow{0%,100%{filter:drop-shadow(0 0 5px rgba(34,211,238,.25))}'
+            '50%{filter:drop-shadow(0 0 16px rgba(34,211,238,.6))}}'
+            '.gval{animation:gvP 4s ease-in-out infinite}'
+            '@keyframes gvP{0%,100%{text-shadow:0 0 14px rgba(34,211,238,.4)}50%{text-shadow:0 0 26px rgba(34,211,238,.85)}}'
+            # 兴趣圆环:旋转高光弧 + 辉光呼吸
+            '.donut{position:relative}'
+            '.donut svg{animation:dialGlow 5s ease-in-out infinite}'
+            '.donut::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;'
+            'background:conic-gradient(from 0deg,transparent 0 72%,rgba(255,255,255,.28) 84%,transparent 96%);'
+            '-webkit-mask:radial-gradient(circle,transparent 54%,#000 56% 90%,transparent 92%);'
+            'mask:radial-gradient(circle,transparent 54%,#000 56% 90%,transparent 92%);'
+            'animation:ringSpin 5.5s linear infinite}'
+            '@keyframes ringSpin{to{transform:rotate(360deg)}}'
+            '}</style>')
+
+# 标题栏专属:主标题渐变流光、翼展光线游走、右侧信号点错峰闪烁
+TITLE_ANIM_CSS = ('<style>@media (prefers-reduced-motion:no-preference){'
+                  '.title h1{background-size:200% 100%;animation:tShine 6s ease-in-out infinite}'
+                  '@keyframes tShine{0%,100%{background-position:0% 0;filter:drop-shadow(0 0 12px rgba(0,200,255,.35))}'
+                  '50%{background-position:100% 0;filter:drop-shadow(0 0 20px rgba(0,220,255,.7))}}'
+                  '.wing i{animation:wingP 3.2s ease-in-out infinite}'
+                  '.wing i:nth-child(2){animation-delay:.4s}.wing i:nth-child(3){animation-delay:.8s}'
+                  '@keyframes wingP{0%,100%{opacity:.45}50%{opacity:1}}'
+                  '.dots i{animation:dotP 2.2s ease-in-out infinite}'
+                  '.dots i:nth-child(2){animation-delay:.4s}.dots i:nth-child(3){animation-delay:.8s}'
+                  '@keyframes dotP{0%,100%{opacity:.4}50%{opacity:1}}'
+                  '.band{animation:bandB 7s ease-in-out infinite}'
+                  '@keyframes bandB{0%,100%{border-color:rgba(0,229,255,.3)}50%{border-color:rgba(0,229,255,.6)}}'
+                  '}</style>')
+
 def apply_patches(title, doc):
     if title.startswith('标题栏'):
         doc = doc.replace('新媒体运营数据驾驶舱', '百商AI新媒体运营飞轮', 1)
+        doc = doc.replace('</head>', TITLE_ANIM_CSS + '</head>', 1)
     else:
-        doc = doc.replace('</head>', HIDE_MT_CSS + '</head>', 1)
+        doc = doc.replace('</head>', HIDE_MT_CSS + ANIM_CSS + '</head>', 1)
     if title.startswith('视频号'):
         doc = doc.replace('  </section>', TOP_EXTRA_ITEMS, 1)
     if title.startswith('健康罗盘'):
