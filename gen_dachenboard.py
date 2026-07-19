@@ -16,7 +16,7 @@ PLAN = {
     'title':  {'match': '标题栏',  'nh': 68},
     'left':   [{'match': '三平台',  'nh': 461}, {'match': '粉丝画像', 'nh': 460}],
     'center': [{'match': '健康罗盘', 'nh': 565}, {'match': '流量来源', 'nh': 290}],
-    'right':  [{'match': '视频号',  'nh': 761}],
+    'right':  [{'match': '视频号',  'nh': 931}],
     'bottom': {'match': '策略',   'nh': 257},
 }
 # 注入每个组件(标题栏除外):让最外层面板撑满 iframe 高度,列底不再露出空底色
@@ -24,13 +24,50 @@ STRETCH_CSS = ('<style>html,body{height:100%!important}'
                'body{display:flex!important;flex-direction:column!important}'
                'body>:first-child{flex:1 0 auto;display:flow-root}</style>')
 
+# ---- 构建期内容补丁(源 JSON 保持原样) ----
+
+# TOP 榜补第 9、10 条(数据源:output/analytics/wechat-postlist.json,2026-07-19 21:30 抓取;
+# √刻度条宽 = sqrt(播放/135322)×100)
+TOP_EXTRA_ITEMS = '''    <div class="item"><span class="rank">9</span><div class="ib">
+      <p class="t" title="凌晨3点,梅西撞上一条魔咒。2008欧…">凌晨3点，梅西撞上一条魔咒。2008欧…</p>
+      <div class="bt"><div class="bf" data-w="5.2"></div></div>
+      <div class="stats"><span class="play">365</span><span>赞 0</span><span>评 0</span><span>藏 0</span><span class="dt">07-19</span></div></div></div>
+    <div class="item"><span class="rank">10</span><div class="ib">
+      <p class="t" title="各位老板,不知道你们有没有发现一个现象:这两…">各位老板，不知道你们有没有发现一个现象…</p>
+      <div class="bt"><div class="bf" data-w="4.3"></div></div>
+      <div class="stats"><span class="play">254</span><span>赞 0</span><span>评 0</span><span>藏 0</span><span class="dt">07-15</span></div></div></div>
+  </section>'''
+
+# 罗盘 KPI 卡片重设计:文字居中、顶部中央光条、径向光晕(覆盖原左侧竖条样式)
+SCARD_CSS = ('<style>'
+             '.scard{text-align:center;padding:8px 10px 7px;border:1px solid rgba(0,229,255,.3);'
+             'border-radius:9px;overflow:hidden;'
+             'background:radial-gradient(62% 100% at 50% 0%,rgba(0,229,255,.12),transparent 70%),'
+             'linear-gradient(180deg,rgba(0,80,170,.26),rgba(0,40,100,.10));'
+             'box-shadow:inset 0 0 14px rgba(0,90,220,.10)}'
+             '.scard::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);'
+             'width:56%;height:2px;border-radius:2px;'
+             'background:linear-gradient(90deg,transparent,#00e5ff,transparent);'
+             'box-shadow:0 0 8px rgba(0,229,255,.8)}'
+             '.scard::after{content:none}'
+             '.sl{display:block;margin:2px 0 1px;letter-spacing:.06em;color:rgba(168,208,240,.78)}'
+             '.sv{font-size:16px}'
+             '</style>')
+
+def apply_patches(title, doc):
+    if title.startswith('视频号'):
+        doc = doc.replace('  </section>', TOP_EXTRA_ITEMS, 1)
+    if title.startswith('健康罗盘'):
+        doc = doc.replace('</head>', SCARD_CSS + '</head>', 1)
+    return doc
+
 d = json.loads(SRC.read_text())
 period = d['dataSnapshot']['period']
 by_prefix = {w['title'][:3]: w for w in d['widgets']}
 
 def widget(match, stretch=True):
     w = next(w for w in d['widgets'] if w['title'].startswith(match))
-    doc = w['files']['index.html']
+    doc = apply_patches(w['title'], w['files']['index.html'])
     if stretch:
         doc = doc.replace('</head>', STRETCH_CSS + '</head>', 1)
     return w['title'], html.escape(doc, quote=True)
