@@ -54,11 +54,38 @@ SCARD_CSS = ('<style>'
              '.sv{font-size:16px}'
              '</style>')
 
+# 隐藏各卡片标题栏右上角的 .mt 角标(时间/刻度标示):其定位依赖宿主变量,在本页面全部与标题重叠
+HIDE_MT_CSS = '<style>.hd .mt,.mt{display:none!important}</style>'
+
+# 流量来源卡片:面板改纵向 flex、图表区 flex:1 自动长高(柱子为百分比高度,随容器铺满底部空间)
+TRAFFIC_CSS = ('<style>'
+               '.panel{display:flex!important;flex-direction:column!important;height:100%}'
+               '.cols{flex:1;align-items:stretch}'
+               '.cols>section{display:flex;flex-direction:column;min-height:0}'
+               '.vchart,.duo{flex:1;height:auto;min-height:128px}'
+               '.foot{margin-top:auto;padding-top:8px;font-size:9px}'
+               '.vval{font-size:9px}.vcats span,.dcats span{font-size:9px}'
+               '</style>')
+
+# 柱高改像素驱动:flex 容器下百分比高度基准不定(计算为0),布局完成后按容器实高换算 px
+TRAFFIC_JS = ('<script>addEventListener("load",function(){requestAnimationFrame(function(){'
+              'document.querySelectorAll(".vchart,.duo").forEach(function(ch){var H=ch.clientHeight;'
+              'ch.querySelectorAll("[data-h]").forEach(function(el){'
+              'var lab=el.parentElement.querySelector(".vval");var max=H-(lab?lab.offsetHeight+8:8);'
+              'el.style.height=Math.max(2,max*parseFloat(el.dataset.h)/100)+"px";});});});});</script>')
+
 def apply_patches(title, doc):
+    if title.startswith('标题栏'):
+        doc = doc.replace('新媒体运营数据驾驶舱', 'AI新媒体运营飞轮看板', 1)
+    else:
+        doc = doc.replace('</head>', HIDE_MT_CSS + '</head>', 1)
     if title.startswith('视频号'):
         doc = doc.replace('  </section>', TOP_EXTRA_ITEMS, 1)
     if title.startswith('健康罗盘'):
         doc = doc.replace('</head>', SCARD_CSS + '</head>', 1)
+    if title.startswith('流量来源'):
+        doc = doc.replace('</head>', TRAFFIC_CSS + '</head>', 1)
+        doc = doc.replace('</body>', TRAFFIC_JS + '</body>', 1)
     return doc
 
 d = json.loads(SRC.read_text())
