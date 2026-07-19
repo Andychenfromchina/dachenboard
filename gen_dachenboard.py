@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # gen_dachenboard.py — 把 Kimi 画布导出的 dachen-dashboard-v3.json 组装成单页大数据看板。
-# 每个 widget 是自包含 HTML,用 iframe(srcdoc) 按 12 列网格摆放,互不污染样式/脚本。
-# 布局经内容实测重排(2026-07-19):槽位高度贴合各组件真实 scrollHeight,消除原画布的死空间/裁切。
+# 布局 V3(2026-07-19):真实三列 flex 布局,列内卡片按实测内容高度排布、每列最后一张卡拉伸补满,
+# 并向各组件注入"面板撑满 iframe"样式 → 三列上下沿对齐、零空隙。
 import html
 import json
 import sys
@@ -9,36 +9,50 @@ from pathlib import Path
 
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else '/Users/andy/Documents/kimi/workspace/dachen-dashboard-v3.json')
 OUT = Path(__file__).parent / 'index.html'
-ROW = 40   # 网格行高(px),槽位高 = 50h-10(含 10px gap)
 GAP = 10
 
-# 按标题前缀覆盖布局;nh = 实测内容高度(px),用于窄屏堆叠时的 iframe 高度
-OVERRIDES = {
-    '标题栏':  dict(x=0, y=0,  w=12, h=2,  nh=68),
-    '三平台':  dict(x=0, y=2,  w=3,  h=10, nh=461),   # 原 h9 裁切 21px → h10
-    '健康罗盘': dict(x=3, y=2,  w=6,  h=12, nh=620),   # 原 h14 死空间 125px → h12(留 Tab 下钻余量)
-    '视频号':  dict(x=9, y=2,  w=3,  h=16, nh=761),   # 原 h21 死空间 280px → h16
-    '粉丝画像': dict(x=0, y=12, w=3,  h=10, nh=460),   # 原 h12 → h10,紧贴对比板块
-    '流量来源': dict(x=3, y=14, w=6,  h=6,  nh=290),   # 紧贴罗盘下方
-    '策略':   dict(x=0, y=22, w=12, h=6,  nh=257),   # 原 h8 → h6,整体上提
+# 实测内容高度(px)。nh=自然高;列内最后一张卡 flex 拉伸,其余固定 nh。
+PLAN = {
+    'title':  {'match': '标题栏',  'nh': 68},
+    'left':   [{'match': '三平台',  'nh': 461}, {'match': '粉丝画像', 'nh': 460}],
+    'center': [{'match': '健康罗盘', 'nh': 565}, {'match': '流量来源', 'nh': 290}],
+    'right':  [{'match': '视频号',  'nh': 761}],
+    'bottom': {'match': '策略',   'nh': 257},
 }
-
-def layout_for(w):
-    for k, v in OVERRIDES.items():
-        if w['title'].startswith(k):
-            return v
-    return dict(**w['placement']['layout'], nh=400)
+# 注入每个组件(标题栏除外):让最外层面板撑满 iframe 高度,列底不再露出空底色
+STRETCH_CSS = ('<style>html,body{height:100%!important}'
+               'body{display:flex!important;flex-direction:column!important}'
+               'body>:first-child{flex:1 0 auto;display:flow-root}</style>')
 
 d = json.loads(SRC.read_text())
 period = d['dataSnapshot']['period']
-cells = []
-for w in sorted(d['widgets'], key=lambda w: (layout_for(w)['y'], layout_for(w)['x'])):
-    L = layout_for(w)
-    doc = html.escape(w['files']['index.html'], quote=True)
-    cells.append(
-        f'<div class="cell" style="grid-column:{L["x"]+1}/span {L["w"]};grid-row:{L["y"]+1}/span {L["h"]};--nh:{L["nh"]}px;">'
-        f'<iframe title="{html.escape(w["title"])}" srcdoc="{doc}" loading="lazy" scrolling="no"></iframe></div>'
-    )
+by_prefix = {w['title'][:3]: w for w in d['widgets']}
+
+def widget(match, stretch=True):
+    w = next(w for w in d['widgets'] if w['title'].startswith(match))
+    doc = w['files']['index.html']
+    if stretch:
+        doc = doc.replace('</head>', STRETCH_CSS + '</head>', 1)
+    return w['title'], html.escape(doc, quote=True)
+
+def cell(match, nh, last=False, stretch=True):
+    t, doc = widget(match, stretch)
+    style = f'flex:1 1 {nh}px;min-height:{nh}px' if last else f'flex:0 0 {nh}px;height:{nh}px'
+    return (f'<div class="cell" style="{style};--nh:{nh}px">'
+            f'<iframe title="{html.escape(t)}" srcdoc="{doc}" scrolling="no"></iframe></div>')
+
+def column(key, span):
+    items = PLAN[key]
+    inner = '\n'.join(cell(it['match'], it['nh'], last=(i == len(items) - 1)) for i, it in enumerate(items))
+    return f'<div class="col" style="grid-column:span {span}">\n{inner}\n</div>'
+
+tt, tdoc = widget(PLAN['title']['match'], stretch=False)
+bt = PLAN['bottom']
+btitle, bdoc = widget(bt['match'], stretch=True)
+title_cell = (f'<div class="cell trow" style="--nh:{PLAN["title"]["nh"]}px">'
+              f'<iframe title="{html.escape(tt)}" srcdoc="{tdoc}" scrolling="no"></iframe></div>')
+bottom_cell = (f'<div class="cell brow" style="--nh:{bt["nh"]}px">'
+               f'<iframe title="{html.escape(btitle)}" srcdoc="{bdoc}" scrolling="no"></iframe></div>')
 
 page = f'''<!DOCTYPE html>
 <html lang="zh-CN">
@@ -49,25 +63,35 @@ page = f'''<!DOCTYPE html>
 <style>
   *{{margin:0;padding:0;box-sizing:border-box}}
   body{{background:radial-gradient(1200px 700px at 50% -10%, #0d1f4c 0%, #060d24 55%, #04081a 100%);min-height:100vh;padding:14px;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}}
-  .board{{display:grid;grid-template-columns:repeat(12,1fr);grid-auto-rows:{ROW}px;gap:{GAP}px;max-width:1440px;margin:0 auto}}
+  .wrap{{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:{GAP}px}}
+  .grid{{display:grid;grid-template-columns:repeat(12,1fr);gap:{GAP}px;align-items:stretch}}
+  .col{{display:flex;flex-direction:column;gap:{GAP}px;min-width:0}}
   .cell{{position:relative;min-width:0}}
   .cell iframe{{width:100%;height:100%;border:0;display:block;background:transparent}}
-  .foot{{max-width:1440px;margin:10px auto 4px;text-align:center;font-size:10px;color:rgba(150,190,230,.45)}}
-  /* 窄屏:纵向堆叠,iframe 高度按各组件实测内容高度给(窄列会回流变高,预留 1.25x) */
+  .trow{{height:{PLAN['title']['nh']}px}}
+  .brow{{height:{bt['nh'] + 8}px}}
+  .foot{{text-align:center;font-size:10px;color:rgba(150,190,230,.45)}}
   @media (max-width:860px){{
-    .board{{display:flex;flex-direction:column;gap:{GAP}px}}
-    .cell{{width:100%}}
+    .grid{{display:flex;flex-direction:column}}
+    .cell{{height:auto!important;flex:none!important}}
     .cell iframe{{height:calc(var(--nh) * 1.25 + 24px)}}
+    .trow iframe{{height:110px}}
   }}
 </style>
 </head>
 <body>
-<main class="board">
-{chr(10).join(cells)}
+<div class="wrap">
+{title_cell}
+<main class="grid">
+{column('left', 3)}
+{column('center', 6)}
+{column('right', 3)}
 </main>
+{bottom_cell}
 <p class="foot">智者大陈 · 三平台运营大数据看板 · 统计周期 {html.escape(period)} · 静态快照,无密钥无接口</p>
+</div>
 </body>
 </html>
 '''
 OUT.write_text(page)
-print(f'wrote {OUT} ({len(page)} bytes, {len(cells)} widgets)')
+print(f'wrote {OUT} ({len(page)} bytes)')
