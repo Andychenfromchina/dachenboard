@@ -231,3 +231,73 @@ page = f'''<!DOCTYPE html>
 '''
 OUT.write_text(page)
 print(f'wrote {OUT} ({len(page)} bytes)')
+
+# ---- 同步导出 v4 JSON(与线上完全一致的全部代码,沿用 Kimi 画布导出格式)----
+import subprocess
+EXPORT = Path(__file__).parent / 'dachen-dashboard-v4.json'
+now = subprocess.run(['date', '-u', '+%Y-%m-%dT%H:%M:%SZ'], capture_output=True, text=True).stdout.strip()
+
+def final_doc(w):
+    """页面里实际嵌入的最终组件代码:内容补丁 + (非标题栏)撑满样式。"""
+    doc = apply_patches(w['title'], w['files']['index.html'])
+    if not w['title'].startswith('标题栏'):
+        doc = doc.replace('</head>', STRETCH_CSS + '</head>', 1)
+    return doc
+
+def grid_of(title):
+    for key in ('left', 'center', 'right'):
+        col_x = {'left': 0, 'center': 3, 'right': 9}[key]
+        col_w = {'left': 3, 'center': 6, 'right': 3}[key]
+        y = 2
+        for it in PLAN[key]:
+            h = round((it['nh'] + GAP) / 50)
+            if title.startswith(it['match']):
+                return dict(mode='grid', x=col_x, y=y, w=col_w, h=h)
+            y += h
+    if title.startswith(PLAN['title']['match']):
+        return dict(mode='grid', x=0, y=0, w=12, h=2)
+    return dict(mode='grid', x=0, y=22, w=12, h=round((PLAN['bottom']['nh'] + GAP) / 50))
+
+export = {
+    'name': '百商AI新媒体运营飞轮 · 大数据看板(线上版全量代码导出)',
+    'version': '4.0',
+    'exportedAt': now,
+    'source': 'https://andychenfromchina.github.io/dachenboard/',
+    'basedOn': d.get('name', ''),
+    'changelog': [
+        '主标题:新媒体运营数据驾驶舱 → 百商AI新媒体运营飞轮',
+        'TOP榜补第9/10条(2026-07-19 21:30 视频号真实抓取数据)',
+        '罗盘KPI卡片重设计:居中+顶部光条+径向光晕',
+        '各卡片标题栏时间/刻度角标移除(重叠)',
+        '流量来源图表 flex 铺满 + 柱高像素驱动',
+        '全板光线流动动效(纯 transform/opacity 合成器动画,respects reduced-motion)',
+        '1.6s 兜底落位脚本(渲染节流下过渡冻结时强制定格最终尺寸)',
+        '布局:真实三列 flex、按实测内容高度排布、列底对齐、末卡拉伸补满',
+    ],
+    'canvas': {
+        'title': '百商AI新媒体运营飞轮',
+        'purpose': d['canvas'].get('purpose', ''),
+        'placements': [
+            {'widgetId': w['widgetId'], 'layout': grid_of(w['title'])} for w in d['widgets']
+        ],
+    },
+    'layoutPixel': PLAN,
+    'dataSnapshot': d.get('dataSnapshot', {}),
+    'page': {
+        'index.html': page,
+        'generator': Path(__file__).read_text(),
+    },
+    'widgets': [
+        {
+            'widgetId': w['widgetId'],
+            'title': ('标题栏 · 百商AI新媒体运营飞轮' if w['title'].startswith('标题栏') else w['title']),
+            'description': w.get('description', ''),
+            'type': 'html',
+            'placement': {'layout': grid_of(w['title'])},
+            'files': {'index.html': final_doc(w)},
+        }
+        for w in d['widgets']
+    ],
+}
+EXPORT.write_text(json.dumps(export, ensure_ascii=False, indent=2))
+print(f'wrote {EXPORT} ({EXPORT.stat().st_size} bytes)')
