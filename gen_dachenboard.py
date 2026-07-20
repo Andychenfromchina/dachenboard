@@ -67,63 +67,66 @@ TRAFFIC_CSS = ('<style>'
                '.vval{font-size:9px}.vcats span,.dcats span{font-size:9px}'
                '</style>')
 
-# 柱高改像素驱动:flex 容器下百分比高度基准不定(计算为0),布局完成后按容器实高换算 px
-TRAFFIC_JS = ('<script>addEventListener("load",function(){requestAnimationFrame(function(){'
-              'document.querySelectorAll(".vchart,.duo").forEach(function(ch){var H=ch.clientHeight;'
-              'ch.querySelectorAll("[data-h]").forEach(function(el){'
-              'var lab=el.parentElement.querySelector(".vval");var max=H-(lab?lab.offsetHeight+8:8);'
-              'el.style.height=Math.max(2,max*parseFloat(el.dataset.h)/100)+"px";});});});});</script>')
+# 兜底落位脚本(注入所有组件):渲染时间线被节流时,width/height 过渡可能永远到不了终点
+# (2026-07-20 实翻:柱条集体停在 min-width 2px)。1.6s 后强制去过渡、直接定格最终尺寸;
+# 流量柱在 flex 容器里百分比基准失效,按容器实高换算 px。
+SETTLE_JS = ('<script>setTimeout(function(){'
+             'document.querySelectorAll("[data-w]").forEach(function(el){'
+             'el.style.transition="none";el.style.width=parseFloat(el.dataset.w)+"%";});'
+             'document.querySelectorAll(".vchart,.duo").forEach(function(ch){var H=ch.clientHeight;'
+             'ch.querySelectorAll("[data-h]").forEach(function(el){'
+             'var lab=el.parentElement.querySelector(".vval");var max=H-(lab?lab.offsetHeight+8:8);'
+             'el.style.transition="none";el.style.height=Math.max(2,max*parseFloat(el.dataset.h)/100)+"px";});});'
+             '},1600);</script>')
 
-# ---- 全局光线流动动效(2026-07-20) ----
-# 覆盖:面板边框呼吸/角标脉冲/标题扫光/横条竖柱流光/玻璃Tab与KPI卡扫光/数字盒霓虹/罗盘表盘辉光/圆环旋转高光
+# ---- 全局光线流动动效(2026-07-20,v2 性能重写) ----
+# ⚠ 教训(2026-07-20 实翻):v1 用 background-position/box-shadow/filter/border-color 关键帧,
+# 全是主线程重绘型动画,98 个叠加把渲染压垮——.bf 宽度过渡时间线冻结,柱条全部消失。
+# v2 铁律:动画只准用 transform 和 opacity(合成器线程,零重绘);辉光一律做成静态阴影层+opacity 脉冲。
 ANIM_CSS = ('<style>@media (prefers-reduced-motion:no-preference){'
-            # 面板边框呼吸 + 四角准星脉冲
-            '.panel{animation:pnlB 6s ease-in-out infinite}'
-            '@keyframes pnlB{0%,100%{border-color:rgba(0,229,255,.26)}50%{border-color:rgba(0,229,255,.55)}}'
+            # 四角准星脉冲(opacity)
             '.cn{animation:cnP 3s ease-in-out infinite}'
             '@keyframes cnP{0%,100%{opacity:.6}50%{opacity:1}}'
-            # 卡片标题栏横向扫光
+            # 卡片标题栏横向扫光(transform)
             '.hd{overflow:hidden}'
-            '.hd::after{content:"";position:absolute;top:0;bottom:0;width:34%;left:-40%;'
+            '.hd::after{content:"";position:absolute;top:0;bottom:0;left:0;width:30%;'
             'background:linear-gradient(105deg,transparent,rgba(140,225,255,.15),transparent);'
-            'animation:hdSweep 5.5s ease-in-out infinite}'
-            '@keyframes hdSweep{0%{left:-40%}55%,100%{left:110%}}'
-            # 横向进度条流光
-            '.bf{position:relative;overflow:hidden}'
-            '.bf::after{content:"";position:absolute;inset:0;'
-            'background:linear-gradient(100deg,transparent 32%,rgba(255,255,255,.32) 50%,transparent 68%);'
-            'background-size:220% 100%;animation:barFlow 2.8s linear infinite}'
-            '@keyframes barFlow{0%{background-position:190% 0}100%{background-position:-90% 0}}'
-            # 竖向柱体升腾流光
+            'transform:translateX(-140%);animation:hdSweep 5.5s ease-in-out infinite;pointer-events:none}'
+            '@keyframes hdSweep{0%{transform:translateX(-140%)}55%,100%{transform:translateX(440%)}}'
+            # 横向进度条流光(transform;不动 .bf 的 position——absolute 定位改 relative 会让条塌陷)
+            '.bf{overflow:hidden}'
+            '.bf::after{content:"";position:absolute;top:0;bottom:0;left:0;width:55%;'
+            'background:linear-gradient(100deg,transparent,rgba(255,255,255,.30),transparent);'
+            'transform:translateX(-110%);animation:bfX 2.8s linear infinite;pointer-events:none}'
+            '@keyframes bfX{0%{transform:translateX(-110%)}100%{transform:translateX(300%)}}'
+            # 竖向柱体升腾流光(transform)
             '.vbar,.dbar{position:relative;overflow:hidden}'
-            '.vbar::after,.dbar::after{content:"";position:absolute;inset:0;'
-            'background:linear-gradient(0deg,transparent 32%,rgba(255,255,255,.28) 50%,transparent 68%);'
-            'background-size:100% 240%;animation:barRise 3.2s linear infinite}'
-            '@keyframes barRise{0%{background-position:0 220%}100%{background-position:0 -120%}}'
-            # 玻璃 Tab / KPI 卡片斜向扫光(错峰)
+            '.vbar::after,.dbar::after{content:"";position:absolute;left:0;right:0;bottom:0;height:45%;'
+            'background:linear-gradient(0deg,transparent,rgba(255,255,255,.26),transparent);'
+            'transform:translateY(120%);animation:vbY 3.2s linear infinite;pointer-events:none}'
+            '@keyframes vbY{0%{transform:translateY(120%)}100%{transform:translateY(-330%)}}'
+            # 玻璃 Tab / KPI 卡片斜向扫光(transform,错峰)
             '.tab,.scard{position:relative;overflow:hidden}'
-            '.tab::after,.scard::after{content:"";position:absolute;top:-40%;bottom:-40%;width:26%;left:-36%;'
-            'transform:skewX(-18deg);background:linear-gradient(90deg,transparent,rgba(180,235,255,.2),transparent);'
-            'animation:sheen 4.8s ease-in-out infinite;pointer-events:none}'
-            '@keyframes sheen{0%{left:-36%}60%,100%{left:125%}}'
+            '.tab::after,.scard::after{content:"";position:absolute;top:-40%;bottom:-40%;left:0;width:24%;'
+            'background:linear-gradient(90deg,transparent,rgba(180,235,255,.2),transparent);'
+            'transform:translateX(-160%) skewX(-18deg);animation:sheenX 4.8s ease-in-out infinite;pointer-events:none}'
+            '@keyframes sheenX{0%{transform:translateX(-160%) skewX(-18deg)}'
+            '60%,100%{transform:translateX(560%) skewX(-18deg)}}'
             '.tab:nth-child(2)::after{animation-delay:.6s}.tab:nth-child(3)::after{animation-delay:1.2s}'
             '.tab:nth-child(4)::after{animation-delay:1.8s}'
             '.scard:nth-child(2)::after{animation-delay:.8s}.scard:nth-child(3)::after{animation-delay:1.6s}'
-            # 翻牌数字盒霓虹呼吸(逐位错峰)
-            '.box{animation:boxGlow 2.6s ease-in-out infinite}'
-            '.box:nth-child(2){animation-delay:.2s}.box:nth-child(3){animation-delay:.4s}'
-            '.box:nth-child(4){animation-delay:.6s}.box:nth-child(5){animation-delay:.8s}.box:nth-child(6){animation-delay:1s}'
-            '@keyframes boxGlow{0%,100%{box-shadow:0 0 5px rgba(0,229,255,.22);text-shadow:0 0 8px rgba(0,229,255,.4)}'
-            '50%{box-shadow:0 0 14px rgba(0,229,255,.65);text-shadow:0 0 14px rgba(0,229,255,.9)}}'
-            # 罗盘表盘辉光呼吸 + 健康分脉冲
-            '.compass{animation:dialGlow 4s ease-in-out infinite}'
-            '@keyframes dialGlow{0%,100%{filter:drop-shadow(0 0 5px rgba(34,211,238,.25))}'
-            '50%{filter:drop-shadow(0 0 16px rgba(34,211,238,.6))}}'
-            '.gval{animation:gvP 4s ease-in-out infinite}'
-            '@keyframes gvP{0%,100%{text-shadow:0 0 14px rgba(34,211,238,.4)}50%{text-shadow:0 0 26px rgba(34,211,238,.85)}}'
-            # 兴趣圆环:旋转高光弧 + 辉光呼吸
+            # 翻牌数字盒霓虹呼吸:静态阴影层 + opacity 脉冲(逐位错峰)
+            '.box{position:relative}'
+            '.box::after{content:"";position:absolute;inset:-2px;border-radius:6px;pointer-events:none;'
+            'box-shadow:0 0 12px rgba(0,229,255,.6);opacity:.15;animation:oP 2.6s ease-in-out infinite}'
+            '.box:nth-child(2)::after{animation-delay:.2s}.box:nth-child(3)::after{animation-delay:.4s}'
+            '.box:nth-child(4)::after{animation-delay:.6s}.box:nth-child(5)::after{animation-delay:.8s}'
+            '.box:nth-child(6)::after{animation-delay:1s}'
+            '@keyframes oP{0%,100%{opacity:.15}50%{opacity:1}}'
+            # 罗盘表盘/健康分:静态辉光(不做 filter 动画)
+            '.compass{filter:drop-shadow(0 0 8px rgba(34,211,238,.35))}'
+            # 兴趣圆环:旋转高光弧(transform)
             '.donut{position:relative}'
-            '.donut svg{animation:dialGlow 5s ease-in-out infinite}'
             '.donut::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;'
             'background:conic-gradient(from 0deg,transparent 0 72%,rgba(255,255,255,.28) 84%,transparent 96%);'
             '-webkit-mask:radial-gradient(circle,transparent 54%,#000 56% 90%,transparent 92%);'
@@ -132,19 +135,14 @@ ANIM_CSS = ('<style>@media (prefers-reduced-motion:no-preference){'
             '@keyframes ringSpin{to{transform:rotate(360deg)}}'
             '}</style>')
 
-# 标题栏专属:主标题渐变流光、翼展光线游走、右侧信号点错峰闪烁
+# 标题栏专属(只用 opacity):翼展光线游走、信号点错峰闪烁;标题辉光改静态
 TITLE_ANIM_CSS = ('<style>@media (prefers-reduced-motion:no-preference){'
-                  '.title h1{background-size:200% 100%;animation:tShine 6s ease-in-out infinite}'
-                  '@keyframes tShine{0%,100%{background-position:0% 0;filter:drop-shadow(0 0 12px rgba(0,200,255,.35))}'
-                  '50%{background-position:100% 0;filter:drop-shadow(0 0 20px rgba(0,220,255,.7))}}'
                   '.wing i{animation:wingP 3.2s ease-in-out infinite}'
                   '.wing i:nth-child(2){animation-delay:.4s}.wing i:nth-child(3){animation-delay:.8s}'
                   '@keyframes wingP{0%,100%{opacity:.45}50%{opacity:1}}'
                   '.dots i{animation:dotP 2.2s ease-in-out infinite}'
                   '.dots i:nth-child(2){animation-delay:.4s}.dots i:nth-child(3){animation-delay:.8s}'
                   '@keyframes dotP{0%,100%{opacity:.4}50%{opacity:1}}'
-                  '.band{animation:bandB 7s ease-in-out infinite}'
-                  '@keyframes bandB{0%,100%{border-color:rgba(0,229,255,.3)}50%{border-color:rgba(0,229,255,.6)}}'
                   '}</style>')
 
 def apply_patches(title, doc):
@@ -153,13 +151,13 @@ def apply_patches(title, doc):
         doc = doc.replace('</head>', TITLE_ANIM_CSS + '</head>', 1)
     else:
         doc = doc.replace('</head>', HIDE_MT_CSS + ANIM_CSS + '</head>', 1)
+        doc = doc.replace('</body>', SETTLE_JS + '</body>', 1)
     if title.startswith('视频号'):
         doc = doc.replace('  </section>', TOP_EXTRA_ITEMS, 1)
     if title.startswith('健康罗盘'):
         doc = doc.replace('</head>', SCARD_CSS + '</head>', 1)
     if title.startswith('流量来源'):
         doc = doc.replace('</head>', TRAFFIC_CSS + '</head>', 1)
-        doc = doc.replace('</body>', TRAFFIC_JS + '</body>', 1)
     return doc
 
 d = json.loads(SRC.read_text())
