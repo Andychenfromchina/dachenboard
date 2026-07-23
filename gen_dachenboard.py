@@ -26,17 +26,8 @@ STRETCH_CSS = ('<style>html,body{height:100%!important}'
 
 # ---- 构建期内容补丁(源 JSON 保持原样) ----
 
-# TOP 榜补第 9、10 条(数据源:output/analytics/wechat-postlist.json,2026-07-19 21:30 抓取;
-# √刻度条宽 = sqrt(播放/135322)×100)
-TOP_EXTRA_ITEMS = '''    <div class="item"><span class="rank">9</span><div class="ib">
-      <p class="t" title="凌晨3点,梅西撞上一条魔咒。2008欧…">凌晨3点，梅西撞上一条魔咒。2008欧…</p>
-      <div class="bt"><div class="bf" data-w="5.2"></div></div>
-      <div class="stats"><span class="play">365</span><span>赞 0</span><span>评 0</span><span>藏 0</span><span class="dt">07-19</span></div></div></div>
-    <div class="item"><span class="rank">10</span><div class="ib">
-      <p class="t" title="各位老板,不知道你们有没有发现一个现象:这两…">各位老板，不知道你们有没有发现一个现象…</p>
-      <div class="bt"><div class="bf" data-w="4.3"></div></div>
-      <div class="stats"><span class="play">254</span><span>赞 0</span><span>评 0</span><span>藏 0</span><span class="dt">07-15</span></div></div></div>
-  </section>'''
+# TOP 榜补丁(2026-07-23 复盘更新):源 JSON 已内嵌当期 8 条真实榜单,旧第 9/10 条(07-19/07-15)已过期,不再注入
+TOP_EXTRA_ITEMS = '  </section>'
 
 # 罗盘 KPI 卡片重设计:文字居中、顶部中央光条、径向光晕(覆盖原左侧竖条样式)
 SCARD_CSS = ('<style>'
